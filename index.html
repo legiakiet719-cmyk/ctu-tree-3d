@@ -10,68 +10,87 @@
             width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
             font-family: Arial, sans-serif;
         }
-        /* Bảng điều khiển thuộc tính bên trái */
+        /* Giao diện Bảng điều khiển */
         #panel {
-            position: absolute; top: 20px; left: 20px; width: 320px;
-            background: rgba(255, 255, 255, 0.95); padding: 15px;
-            border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            position: absolute; top: 20px; left: 20px; width: 340px;
+            background: rgba(255, 255, 255, 0.95); padding: 20px;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             z-index: 1000; pointer-events: auto;
         }
-        h3 { margin-top: 0; color: #007bc3; border-bottom: 2px solid #007bc3; padding-bottom: 5px;}
+        h3 { margin-top: 0; color: #0056b3; border-bottom: 2px solid #0056b3; padding-bottom: 8px; font-size: 16px; text-transform: uppercase; text-align: center;}
         .form-group { margin-bottom: 12px; }
-        label { font-weight: bold; display: block; margin-bottom: 4px; font-size: 13px;}
-        input[type="number"] { width: 100%; padding: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
-        .result-box { background: #eef7fc; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 13px;}
-        .result-item { margin-bottom: 6px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 13px; color: #333;}
+        input[type="text"], input[type="number"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;}
+        .result-box { background: #eef7fc; padding: 12px; border-radius: 6px; margin-top: 15px; font-size: 13px; border: 1px solid #cce3f6;}
+        .result-item { margin-bottom: 8px; display: flex; justify-content: space-between;}
         .emphasis { font-weight: bold; color: #d32f2f; }
+        .author-info { font-size: 11px; color: #666; text-align: center; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 12px; }
     </style>
 </head>
 <body>
 
     <div id="panel">
-        <h3>THUỘC TÍNH CÂY XANH</h3>
-        <div id="instruction"><i>Nhấp chọn một cây trên bản đồ 3D để xem và chỉnh sửa thông tin.</i></div>
+        <h3>Quản lý Hiện trạng Cây xanh 3D</h3>
+        <div id="instruction" style="font-size: 13px; color: #555; text-align: center; margin-bottom: 10px;">
+            <i>Nhấp chọn một cây trên bản đồ 3D để xem và mô phỏng thông số.</i>
+        </div>
+        
         <div id="formFields" style="display: none;">
             <div class="form-group">
                 <label>Mã số cây:</label>
-                <input type="text" id="treeId" disabled style="width:100%; padding:6px; background:#eee; border:1px solid #ccc;">
+                <input type="text" id="treeId" disabled style="background:#e9ecef; color: #495057;">
             </div>
             <div class="form-group">
                 <label>Loại cây:</label>
-                <input type="text" id="treeType" disabled style="width:100%; padding:6px; background:#eee; border:1px solid #ccc;">
+                <input type="text" id="treeType" disabled style="background:#e9ecef; color: #495057;">
             </div>
             <div class="form-group">
                 <label>Đường kính DBH (cm):</label>
                 <input type="number" id="treeDBH" step="0.1" min="1">
             </div>
+            
             <div class="result-box">
-                <div class="result-item">Sinh khối mặt đất (AGB): <span id="resAGB" class="emphasis">0</span> kg</div>
-                <div class="result-item">Lượng Carbon tích lũy (C): <span id="resC" class="emphasis">0</span> kg</div>
-                <div class="result-item">Lượng CO2 hấp thụ: <span id="resCO2" class="emphasis">0</span> kg</div>
+                <div class="result-item"><span>Sinh khối (AGB):</span> <span id="resAGB" class="emphasis">0 kg</span></div>
+                <div class="result-item"><span>Carbon tích lũy:</span> <span id="resC" class="emphasis">0 kg</span></div>
+                <div class="result-item"><span>CO2 hấp thụ:</span> <span id="resCO2" class="emphasis">0 kg</span></div>
             </div>
+        </div>
+        
+        <div class="author-info">
+            SVTH: <b>Lê Gia Kiệt</b> | MSSV: <b>B2301723</b><br>
+            Ngành: Quản lý đất đai - ĐH Cần Thơ
         </div>
     </div>
 
     <div id="cesiumContainer"></div>
 
     <script>
-        // 1. Khởi tạo bản đồ Cesium 3D toàn cầu
+        // 1. Khởi tạo bản đồ Cesium 3D toàn cầu với địa hình
         const viewer = new Cesium.Viewer('cesiumContainer', {
-            terrainProvider: Cesium.createWorldTerrain(), // Bật địa hình 3D
-            animation: false, timeline: false, infoBox: false
+            terrainProvider: Cesium.createWorldTerrain(),
+            animation: false, timeline: false, infoBox: false,
+            baseLayerPicker: false, navigationHelpButton: false
         });
 
-        // Định vị bản đồ thẳng vào Khu II Đại học Cần Thơ
+        // 2. Định vị Camera góc nghiêng xuống Khu II ĐH Cần Thơ
         viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(105.768, 10.030, 500), // Tọa độ trung tâm Khu II
-            orientation: { pitch: Cesium.Math.toRadians(-45) } // Góc nhìn nghiêng 3D
+            destination: Cesium.Cartesian3.fromDegrees(105.768, 10.030, 450), 
+            orientation: { 
+                heading: Cesium.Math.toRadians(0),
+                pitch: Cesium.Math.toRadians(-45),
+                roll: 0.0
+            } 
+        });
+
+        // 3. Tải lớp tòa nhà 3D (Đại học Cần Thơ)
+        Cesium.createOsmBuildingsAsync().then(function(buildings) {
+            viewer.scene.primitives.add(buildings);
         });
 
         let selectedEntity = null;
 
-        // 2. Hàm toán học tự động tính toán sinh khối và carbon theo thời gian thực
+        // 4. Hàm toán học: Tự động tính sinh khối và carbon
         function calculateBiomass(dbh) {
-            // Công thức Allometric minh họa (Bạn có thể thay đổi hệ số cho đúng loài cây)
             const agb = 0.0509 * Math.pow(dbh, 2);
             const c = agb * 0.47;
             const co2 = c * 3.667;
@@ -82,11 +101,10 @@
             };
         }
 
-        // 3. Đọc dữ liệu GeoJSON đã xuất từ QGIS
+        // 5. Đọc file dữ liệu cây xanh GeoJSON và cắm mô hình 3D
         fetch('ctu_biomass.geojson')
             .then(response => response.json())
             .then(geojsonData => {
-                // Duyệt qua từng điểm cây xanh trong file dữ liệu
                 geojsonData.features.forEach(feature => {
                     const coords = feature.geometry.coordinates;
                     const props = feature.properties;
@@ -94,8 +112,7 @@
                     const dbhInit = parseFloat(props["DBH1.3"]) || 15.0;
                     const metrics = calculateBiomass(dbhInit);
 
-                    // Biến điểm kinh vĩ độ thành mô hình khối hình trụ 3D trên WebGIS
-                    const treeEntity = viewer.entities.add({
+                    viewer.entities.add({
                         position: Cesium.Cartesian3.fromDegrees(coords[0], coords[1], 0),
                         name: "Cây số " + (props["Number_tre"] || "Chưa rõ"),
                         properties: {
@@ -106,68 +123,68 @@
                             c: metrics.c,
                             co2: metrics.co2
                         },
-                        // Mô phỏng cây bằng khối hình trụ (Thân cây to ra dựa trên DBH)
-                        cylinder: {
-                            length: dbhInit * 0.4, // Chiều cao cây giả định tỷ lệ với DBH
-                            topRadius: dbhInit * 0.05, // Độ rộng tán cây trên
-                            bottomRadius: dbhInit * 0.02, // Độ rộng gốc cây
-                            material: Cesium.Color.fromCssColorString('#8e44ad').withAlpha(0.8), // Màu tím giống QGIS
+                        // Sử dụng mô hình cây 3D thực tế thay cho hình trụ
+                        model: {
+                            uri: 'tree.glb', // Tệp 3D bạn cần tải về để chung thư mục
+                            scale: dbhInit * 0.1, // Hệ số co giãn mô hình
                             heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND
                         }
                     });
                 });
             });
 
-        // 4. Bắt sự kiện Nhấp chuột (Click) vào cây trên không gian 3D
+        // 6. Sự kiện: Click vào cây 3D
         const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
         handler.setInputAction(function(movement) {
             const pickedObject = viewer.scene.pick(movement.position);
             if (Cesium.defined(pickedObject) && pickedObject.id) {
                 selectedEntity = pickedObject.id;
                 
-                // Hiển thị Form thuộc tính cây
+                // Hiển thị Form
                 document.getElementById('instruction').style.display = 'none';
                 document.getElementById('formFields').style.display = 'block';
                 
-                // Đổ dữ liệu cũ của cây vào Form
+                // Đổ dữ liệu vào Form
                 document.getElementById('treeId').value = selectedEntity.properties.id.getValue();
                 document.getElementById('treeType').value = selectedEntity.properties.type.getValue();
                 document.getElementById('treeDBH').value = selectedEntity.properties.dbh.getValue();
                 
-                // Cập nhật kết quả tính toán lên giao diện
-                updateLabels(selectedEntity.properties.agb.getValue(), selectedEntity.properties.c.getValue(), selectedEntity.properties.co2.getValue());
+                // Cập nhật nhãn kết quả
+                updateLabels(
+                    selectedEntity.properties.agb.getValue(), 
+                    selectedEntity.properties.c.getValue(), 
+                    selectedEntity.properties.co2.getValue()
+                );
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-        // 5. Logic tự động thay đổi: Khi người dùng sửa DBH trong ô nhập liệu
+        // 7. Sự kiện: Thay đổi thông số DBH trên giao diện
         document.getElementById('treeDBH').addEventListener('input', function(e) {
             if (!selectedEntity) return;
             
             const newDBH = parseFloat(e.target.value);
             if (isNaN(newDBH) || newDBH <= 0) return;
 
-            // Chạy hàm tự động tính toán lại tức thời các thông số Carbon
+            // Tính lại số liệu
             const newMetrics = calculateBiomass(newDBH);
 
-            // Cập nhật lại kho dữ liệu lưu trữ của thực thể cây đó
+            // Lưu số liệu mới vào thuộc tính của cây
             selectedEntity.properties.dbh.setValue(newDBH);
             selectedEntity.properties.agb.setValue(newMetrics.agb);
             selectedEntity.properties.c.setValue(newMetrics.c);
             selectedEntity.properties.co2.setValue(newMetrics.co2);
 
-            // TỰ ĐỘNG THAY ĐỔI HÌNH HỌC 3D: Cho hình trụ co giãn to/nhỏ theo số DBH mới
-            selectedEntity.cylinder.length = newDBH * 0.4;
-            selectedEntity.cylinder.topRadius = newDBH * 0.05;
-            selectedEntity.cylinder.bottomRadius = newDBH * 0.02;
+            // GIAO DIỆN 3D: Co giãn cây to lên / nhỏ đi tức thì
+            selectedEntity.model.scale = newDBH * 0.1;
 
-            // Cập nhật kết quả hiển thị ra màn hình cho người dùng xem
+            // In kết quả mới ra màn hình
             updateLabels(newMetrics.agb, newMetrics.c, newMetrics.co2);
         });
 
         function updateLabels(agb, c, co2) {
-            document.getElementById('resAGB').innerText = agb;
-            document.getElementById('resC').innerText = c;
-            document.getElementById('resCO2').innerText = co2;
+            document.getElementById('resAGB').innerText = agb + " kg";
+            document.getElementById('resC').innerText = c + " kg";
+            document.getElementById('resCO2').innerText = co2 + " kg";
         }
     </script>
 </body>
