@@ -6,11 +6,7 @@
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.105/Build/Cesium/Cesium.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
-        html, body, #cesiumContainer {
-            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
-        /* Giao diện Bảng điều khiển */
+        html, body, #cesiumContainer { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
         #panel {
             position: absolute; top: 20px; left: 20px; width: 340px;
             background: rgba(255, 255, 255, 0.95); padding: 20px;
@@ -24,38 +20,25 @@
         .result-box { background: #eef7fc; padding: 12px; border-radius: 6px; margin-top: 15px; font-size: 13px; border: 1px solid #cce3f6;}
         .result-item { margin-bottom: 8px; display: flex; justify-content: space-between;}
         .emphasis { font-weight: bold; color: #d32f2f; }
-        .author-info { font-size: 11px; color: #666; text-align: center; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 12px; }
+        .author-info { font-size: 11px; color: #666; text-align: center; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 12px; line-height: 1.5; }
     </style>
 </head>
 <body>
-
     <div id="panel">
         <h3>Quản lý Hiện trạng Cây xanh 3D</h3>
         <div id="instruction" style="font-size: 13px; color: #555; text-align: center; margin-bottom: 10px;">
             <i>Nhấp chọn một cây trên bản đồ 3D để xem và mô phỏng thông số.</i>
         </div>
-        
         <div id="formFields" style="display: none;">
-            <div class="form-group">
-                <label>Mã số cây:</label>
-                <input type="text" id="treeId" disabled style="background:#e9ecef; color: #495057;">
-            </div>
-            <div class="form-group">
-                <label>Loại cây:</label>
-                <input type="text" id="treeType" disabled style="background:#e9ecef; color: #495057;">
-            </div>
-            <div class="form-group">
-                <label>Đường kính DBH (cm):</label>
-                <input type="number" id="treeDBH" step="0.1" min="1">
-            </div>
-            
+            <div class="form-group"><label>Mã số cây:</label><input type="text" id="treeId" disabled style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Loại cây:</label><input type="text" id="treeType" disabled style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Đường kính DBH (cm):</label><input type="number" id="treeDBH" step="0.1" min="1"></div>
             <div class="result-box">
                 <div class="result-item"><span>Sinh khối (AGB):</span> <span id="resAGB" class="emphasis">0 kg</span></div>
                 <div class="result-item"><span>Carbon tích lũy:</span> <span id="resC" class="emphasis">0 kg</span></div>
                 <div class="result-item"><span>CO2 hấp thụ:</span> <span id="resCO2" class="emphasis">0 kg</span></div>
             </div>
         </div>
-        
         <div class="author-info">
             SVTH: <b>Lê Gia Kiệt</b> | MSSV: <b>B2301723</b><br>
             Ngành: Quản lý đất đai - ĐH Cần Thơ
@@ -65,50 +48,40 @@
     <div id="cesiumContainer"></div>
 
     <script>
-        // 1. Khởi tạo bản đồ Cesium 3D toàn cầu với địa hình
+        // DÁN MÃ TOKEN CỦA BẠN VÀO GIỮA 2 DẤU NHÁY ĐƠN DƯỚI ĐÂY
+        Cesium.Ion.defaultAccessToken = 'YOUR_CESIUM_ION_TOKEN_HERE';
+
         const viewer = new Cesium.Viewer('cesiumContainer', {
             terrainProvider: Cesium.createWorldTerrain(),
             animation: false, timeline: false, infoBox: false,
             baseLayerPicker: false, navigationHelpButton: false
         });
 
-        // 2. Định vị Camera góc nghiêng xuống Khu II ĐH Cần Thơ
         viewer.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(105.768, 10.030, 450), 
-            orientation: { 
-                heading: Cesium.Math.toRadians(0),
-                pitch: Cesium.Math.toRadians(-45),
-                roll: 0.0
-            } 
+            orientation: { heading: 0.0, pitch: Cesium.Math.toRadians(-45), roll: 0.0 } 
         });
 
-        // 3. Tải lớp tòa nhà 3D (Đại học Cần Thơ)
+        // Bật lớp Tòa nhà 3D
         Cesium.createOsmBuildingsAsync().then(function(buildings) {
             viewer.scene.primitives.add(buildings);
         });
 
         let selectedEntity = null;
 
-        // 4. Hàm toán học: Tự động tính sinh khối và carbon
         function calculateBiomass(dbh) {
             const agb = 0.0509 * Math.pow(dbh, 2);
             const c = agb * 0.47;
             const co2 = c * 3.667;
-            return {
-                agb: agb.toFixed(2),
-                c: c.toFixed(2),
-                co2: co2.toFixed(2)
-            };
+            return { agb: agb.toFixed(2), c: c.toFixed(2), co2: co2.toFixed(2) };
         }
 
-        // 5. Đọc file dữ liệu cây xanh GeoJSON và cắm mô hình 3D
         fetch('ctu_biomass.geojson')
             .then(response => response.json())
             .then(geojsonData => {
                 geojsonData.features.forEach(feature => {
                     const coords = feature.geometry.coordinates;
                     const props = feature.properties;
-                    
                     const dbhInit = parseFloat(props["DBH1.3"]) || 15.0;
                     const metrics = calculateBiomass(dbhInit);
 
@@ -116,68 +89,46 @@
                         position: Cesium.Cartesian3.fromDegrees(coords[0], coords[1], 0),
                         name: "Cây số " + (props["Number_tre"] || "Chưa rõ"),
                         properties: {
-                            id: props["Number_tre"] || "N/A",
-                            type: props["Type_tree"] || "Xoài",
-                            dbh: dbhInit,
-                            agb: metrics.agb,
-                            c: metrics.c,
-                            co2: metrics.co2
+                            id: props["Number_tre"] || "N/A", type: props["Type_tree"] || "Xoài",
+                            dbh: dbhInit, agb: metrics.agb, c: metrics.c, co2: metrics.co2
                         },
-                        // Sử dụng mô hình cây 3D thực tế thay cho hình trụ
-                        model: {
-                            uri: 'tree.glb', // Tệp 3D bạn cần tải về để chung thư mục
-                            scale: dbhInit * 0.1, // Hệ số co giãn mô hình
+                        // Mô phỏng cây bằng khối Elip xanh lá siêu nhẹ
+                        ellipsoid: {
+                            radii: new Cesium.Cartesian3(dbhInit * 0.1, dbhInit * 0.1, dbhInit * 0.15),
+                            material: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.85),
                             heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND
                         }
                     });
                 });
             });
 
-        // 6. Sự kiện: Click vào cây 3D
         const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
         handler.setInputAction(function(movement) {
             const pickedObject = viewer.scene.pick(movement.position);
             if (Cesium.defined(pickedObject) && pickedObject.id) {
                 selectedEntity = pickedObject.id;
-                
-                // Hiển thị Form
                 document.getElementById('instruction').style.display = 'none';
                 document.getElementById('formFields').style.display = 'block';
-                
-                // Đổ dữ liệu vào Form
                 document.getElementById('treeId').value = selectedEntity.properties.id.getValue();
                 document.getElementById('treeType').value = selectedEntity.properties.type.getValue();
                 document.getElementById('treeDBH').value = selectedEntity.properties.dbh.getValue();
-                
-                // Cập nhật nhãn kết quả
-                updateLabels(
-                    selectedEntity.properties.agb.getValue(), 
-                    selectedEntity.properties.c.getValue(), 
-                    selectedEntity.properties.co2.getValue()
-                );
+                updateLabels(selectedEntity.properties.agb.getValue(), selectedEntity.properties.c.getValue(), selectedEntity.properties.co2.getValue());
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-        // 7. Sự kiện: Thay đổi thông số DBH trên giao diện
         document.getElementById('treeDBH').addEventListener('input', function(e) {
             if (!selectedEntity) return;
-            
             const newDBH = parseFloat(e.target.value);
             if (isNaN(newDBH) || newDBH <= 0) return;
 
-            // Tính lại số liệu
             const newMetrics = calculateBiomass(newDBH);
-
-            // Lưu số liệu mới vào thuộc tính của cây
             selectedEntity.properties.dbh.setValue(newDBH);
             selectedEntity.properties.agb.setValue(newMetrics.agb);
             selectedEntity.properties.c.setValue(newMetrics.c);
             selectedEntity.properties.co2.setValue(newMetrics.co2);
 
-            // GIAO DIỆN 3D: Co giãn cây to lên / nhỏ đi tức thì
-            selectedEntity.model.scale = newDBH * 0.1;
-
-            // In kết quả mới ra màn hình
+            // Co giãn khối Elip khi thay đổi thông số
+            selectedEntity.ellipsoid.radii = new Cesium.Cartesian3(newDBH * 0.1, newDBH * 0.1, newDBH * 0.15);
             updateLabels(newMetrics.agb, newMetrics.c, newMetrics.co2);
         });
 
