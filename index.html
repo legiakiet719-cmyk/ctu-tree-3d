@@ -60,31 +60,37 @@
     <div id="cesiumContainer"></div>
 
     <script>
-        // MÃ TOKEN CỦA BẠN
+        // TOKEN CỦA BẠN
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiN2NmOTkxMy1hZWY2LTQxNDAtYjVmZS01YjgwOGZhZGY3YWUiLCJpZCI6NDQ4OTAyLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODIzNzYyNDd9.dvcfbusRjzXYmTRnvL9ofWWo3pgygC_fai-G3UQGq3k';
 
-        // Tối ưu hiệu năng - Dùng bản đồ đường phố OpenStreetMap cực nhẹ
+        // -------------------------------------------------------------
+        // CẤU HÌNH SIÊU TỐI ƯU (CHỐNG LAG TUYỆT ĐỐI)
+        // -------------------------------------------------------------
         const viewer = new Cesium.Viewer('cesiumContainer', {
             imageryProvider: new Cesium.UrlTemplateImageryProvider({
                 url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                 subdomains: ['a', 'b', 'c']
             }),
-            terrainProvider: undefined, // Tắt địa hình lồi lõm
+            terrainProvider: undefined, // Tắt địa hình
             animation: false, timeline: false, infoBox: false,
             baseLayerPicker: false, navigationHelpButton: false,
             sceneModePicker: false, geocoder: false, homeButton: false,
             fullscreenButton: false, skyAtmosphere: false, skyBox: false
         });
 
+        // Ép hệ thống không render các hiệu ứng thừa
         viewer.scene.fog.enabled = false;
         viewer.scene.globe.showGroundAtmosphere = false;
+        viewer.scene.postProcessStages.fxaa.enabled = false; 
+        viewer.scene.shadowMap.enabled = false; 
 
+        // Đặt góc quay vào Khu II
         viewer.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(105.768, 10.030, 800), 
             orientation: { heading: 0.0, pitch: Cesium.Math.toRadians(-45), roll: 0.0 } 
         });
 
-        // Tải Khối nhà 3D
+        // Bật lớp tòa nhà 3D
         Cesium.createOsmBuildingsAsync().then(function(buildings) {
             viewer.scene.primitives.add(buildings);
         });
@@ -98,21 +104,27 @@
             return { agb: agb.toFixed(2), c: c.toFixed(2), co2: co2.toFixed(2) };
         }
 
-        // LỆNH ĐỌC FILE: PHẢI LÀ ĐUÔI .geojson NHƯ ĐÃ CHỈ ĐỊNH
-        fetch('CTU_biomass2.geojson')
+        // -------------------------------------------------------------
+        // ĐỌC FILE DỮ LIỆU ĐÃ ĐƯỢC CHỈ ĐỊNH ĐÚNG TÊN
+        // -------------------------------------------------------------
+        fetch('ctu_biomass3.geojson')
             .then(response => response.json())
             .then(geojsonData => {
                 geojsonData.features.forEach(feature => {
                     const coords = feature.geometry.coordinates;
                     const props = feature.properties;
                     
+                    if (!coords) return; // Tránh lỗi nếu có điểm bị mất tọa độ
+
                     const dbhInit = parseFloat(props["DBH1.3"]) || 15.0;
+                    // Lấy cột H, nếu cây nào thiếu H thì tạm lấy 0.3 * DBH
                     const hInit = parseFloat(props["H"]) || (dbhInit * 0.3); 
                     const metrics = calculateBiomass(dbhInit);
                     const treeNumber = props["Number_tre"] ? props["Number_tre"].toString() : "N/A";
 
                     viewer.entities.add({
                         id: treeNumber,
+                        // ĐẨY TRỤC Z LÊN hInit/2 ĐỂ CÂY KHÔNG CHÌM XUỐNG ĐẤT
                         position: Cesium.Cartesian3.fromDegrees(coords[0], coords[1], hInit / 2),
                         name: "Cây số " + treeNumber,
                         properties: {
@@ -120,17 +132,18 @@
                             dbh: dbhInit, h: hInit,
                             agb: metrics.agb, c: metrics.c, co2: metrics.co2
                         },
-                        // Sử dụng khối Lục giác (6 mặt) chống lag 100%
                         cylinder: {
                             length: hInit,
-                            topRadius: dbhInit * 0.08,
-                            bottomRadius: dbhInit * 0.08,
-                            slices: 6, 
-                            material: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.85)
+                            // Độ rộng cây tỷ lệ với DBH
+                            topRadius: dbhInit * 0.06,
+                            bottomRadius: dbhInit * 0.06,
+                            slices: 6, // Render dạng khối lục giác để load 6.500 cây cực mượt
+                            material: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.9)
                         }
                     });
                 });
-            });
+            })
+            .catch(error => console.log("Lỗi tải file:", error));
 
         function populateForm(entity) {
             selectedEntity = entity;
@@ -167,6 +180,9 @@
             if (e.key === 'Enter') document.getElementById('searchBtn').click();
         });
 
+        // -------------------------------------------------------------
+        // TƯƠNG TÁC THAY ĐỔI DBH VÀ CHIỀU CAO H
+        // -------------------------------------------------------------
         document.getElementById('treeDBH').addEventListener('input', function(e) {
             if (!selectedEntity) return;
             const newDBH = parseFloat(e.target.value);
@@ -178,8 +194,9 @@
             selectedEntity.properties.c.setValue(newMetrics.c);
             selectedEntity.properties.co2.setValue(newMetrics.co2);
 
-            selectedEntity.cylinder.topRadius = newDBH * 0.08;
-            selectedEntity.cylinder.bottomRadius = newDBH * 0.08;
+            // Cây to ra hoặc nhỏ lại
+            selectedEntity.cylinder.topRadius = newDBH * 0.06;
+            selectedEntity.cylinder.bottomRadius = newDBH * 0.06;
             updateLabels(newMetrics.agb, newMetrics.c, newMetrics.co2);
         });
 
@@ -191,6 +208,7 @@
             selectedEntity.properties.h.setValue(newH);
             selectedEntity.cylinder.length = newH;
             
+            // Kéo dài cây và đẩy tọa độ Z lên để gốc cây luôn chạm đất
             const coords = selectedEntity.position.getValue(Cesium.JulianDate.now());
             const cartographic = Cesium.Cartographic.fromCartesian(coords);
             selectedEntity.position = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, newH / 2);
