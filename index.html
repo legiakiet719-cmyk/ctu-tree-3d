@@ -6,7 +6,7 @@
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.105/Build/Cesium/Cesium.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
-        html, body, #cesiumContainer { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
+        html, body, #cesiumContainer { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; background-color: #a3ccff; /* Màu nền trời xanh nhạt cho nhẹ */ }
         #panel {
             position: absolute; top: 20px; left: 20px; width: 340px;
             background: rgba(255, 255, 255, 0.95); padding: 20px;
@@ -14,6 +14,10 @@
             z-index: 1000; pointer-events: auto;
         }
         h3 { margin-top: 0; color: #0056b3; border-bottom: 2px solid #0056b3; padding-bottom: 8px; font-size: 16px; text-transform: uppercase; text-align: center;}
+        .search-box { display: flex; gap: 8px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #ccc; }
+        .search-box input { flex: 1; padding: 8px; border: 1px solid #0056b3; border-radius: 4px; font-size: 13px; }
+        .search-box button { background: #0056b3; color: white; border: none; border-radius: 4px; padding: 0 12px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s;}
+        .search-box button:hover { background: #004494; }
         .form-group { margin-bottom: 12px; }
         label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 13px; color: #333;}
         input[type="text"], input[type="number"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;}
@@ -24,15 +28,23 @@
     </style>
 </head>
 <body>
+
     <div id="panel">
-        <h3>Quản lý Hiện trạng Cây xanh 3D</h3>
+        <h3>Quản lý Cây xanh 3D</h3>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Nhập mã số cây (VD: 89)...">
+            <button id="searchBtn">Tìm</button>
+        </div>
         <div id="instruction" style="font-size: 13px; color: #555; text-align: center; margin-bottom: 10px;">
-            <i>Nhấp chọn một cây trên bản đồ 3D để xem và mô phỏng thông số.</i>
+            <i>Nhấp chọn cây hoặc nhập mã số để tra cứu.</i>
         </div>
         <div id="formFields" style="display: none;">
-            <div class="form-group"><label>Mã số cây:</label><input type="text" id="treeId" disabled style="background:#e9ecef;"></div>
+            <div class="form-group"><label>Mã số cây:</label><input type="text" id="treeId" disabled style="background:#e9ecef; font-weight: bold; color: #d32f2f;"></div>
             <div class="form-group"><label>Loại cây:</label><input type="text" id="treeType" disabled style="background:#e9ecef;"></div>
-            <div class="form-group"><label>Đường kính DBH (cm):</label><input type="number" id="treeDBH" step="0.1" min="1"></div>
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;"><label>DBH (cm):</label><input type="number" id="treeDBH" step="0.1" min="1"></div>
+                <div class="form-group" style="flex: 1;"><label>Cao H (m):</label><input type="number" id="treeH" step="0.1" min="0.1"></div>
+            </div>
             <div class="result-box">
                 <div class="result-item"><span>Sinh khối (AGB):</span> <span id="resAGB" class="emphasis">0 kg</span></div>
                 <div class="result-item"><span>Carbon tích lũy:</span> <span id="resC" class="emphasis">0 kg</span></div>
@@ -48,21 +60,43 @@
     <div id="cesiumContainer"></div>
 
     <script>
-        // DÁN MÃ TOKEN CỦA BẠN VÀO GIỮA 2 DẤU NHÁY ĐƠN DƯỚI ĐÂY
-        Cesium.Ion.defaultAccessToken = 'YOUR_CESIUM_ION_TOKEN_HERE';
+        // MÃ TOKEN CỦA BẠN ĐỂ HIỂN THỊ CÁC TÒA NHÀ KHU II
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJiN2NmOTkxMy1hZWY2LTQxNDAtYjVmZS01YjgwOGZhZGY3YWUiLCJpZCI6NDQ4OTAyLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODIzNzYyNDd9.dvcfbusRjzXYmTRnvL9ofWWo3pgygC_fai-G3UQGq3k';
 
+        // -------------------------------------------------------------
+        // CHẾ ĐỘ SIÊU TỐI ƯU HIỆU NĂNG (GIẢM LAG TỐI ĐA)
+        // -------------------------------------------------------------
         const viewer = new Cesium.Viewer('cesiumContainer', {
-            terrainProvider: Cesium.createWorldTerrain(),
-            animation: false, timeline: false, infoBox: false,
-            baseLayerPicker: false, navigationHelpButton: false
+            // Bật bản đồ nền OpenStreetMap y như ảnh bạn vừa gửi
+            imageryProvider: new Cesium.UrlTemplateImageryProvider({
+                url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: ['a', 'b', 'c']
+            }),
+            terrainProvider: undefined, // Tắt địa hình lồi lõm (quan trọng nhất để chống lag)
+            animation: false, 
+            timeline: false, 
+            infoBox: false,
+            baseLayerPicker: false, 
+            navigationHelpButton: false,
+            sceneModePicker: false,
+            geocoder: false,
+            homeButton: false,
+            fullscreenButton: false,
+            skyAtmosphere: false, // Tắt khí quyển
+            skyBox: false // Tắt bầu trời vũ trụ
         });
 
+        // Tắt thêm các hiệu ứng môi trường phụ
+        viewer.scene.fog.enabled = false;
+        viewer.scene.globe.showGroundAtmosphere = false;
+
+        // Định vị Camera về Khu II ĐH Cần Thơ
         viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(105.768, 10.030, 450), 
+            destination: Cesium.Cartesian3.fromDegrees(105.768, 10.030, 800), 
             orientation: { heading: 0.0, pitch: Cesium.Math.toRadians(-45), roll: 0.0 } 
         });
 
-        // Bật lớp Tòa nhà 3D
+        // Bật các khối tòa nhà 3D
         Cesium.createOsmBuildingsAsync().then(function(buildings) {
             viewer.scene.primitives.add(buildings);
         });
@@ -76,45 +110,74 @@
             return { agb: agb.toFixed(2), c: c.toFixed(2), co2: co2.toFixed(2) };
         }
 
-        fetch('ctu_biomass.geojson')
+        // TẢI DỮ LIỆU CÂY (Lưu ý tên tệp của bạn)
+        fetch('CTU_biomass2.geojson')
             .then(response => response.json())
             .then(geojsonData => {
                 geojsonData.features.forEach(feature => {
                     const coords = feature.geometry.coordinates;
                     const props = feature.properties;
+                    
                     const dbhInit = parseFloat(props["DBH1.3"]) || 15.0;
+                    const hInit = parseFloat(props["H"]) || (dbhInit * 0.3); 
                     const metrics = calculateBiomass(dbhInit);
+                    const treeNumber = props["Number_tre"] ? props["Number_tre"].toString() : "N/A";
 
                     viewer.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(coords[0], coords[1], 0),
-                        name: "Cây số " + (props["Number_tre"] || "Chưa rõ"),
+                        id: treeNumber,
+                        position: Cesium.Cartesian3.fromDegrees(coords[0], coords[1], hInit / 2),
+                        name: "Cây số " + treeNumber,
                         properties: {
-                            id: props["Number_tre"] || "N/A", type: props["Type_tree"] || "Xoài",
-                            dbh: dbhInit, agb: metrics.agb, c: metrics.c, co2: metrics.co2
+                            id: treeNumber, type: props["Type_tree"] || "Xoài",
+                            dbh: dbhInit, h: hInit,
+                            agb: metrics.agb, c: metrics.c, co2: metrics.co2
                         },
-                        // Mô phỏng cây bằng khối Elip xanh lá siêu nhẹ
-                        ellipsoid: {
-                            radii: new Cesium.Cartesian3(dbhInit * 0.1, dbhInit * 0.1, dbhInit * 0.15),
-                            material: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.85),
-                            heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND
+                        // Khối Lục Giác (6 mặt) - Rất nhẹ, chạy mượt 6.500 cây
+                        cylinder: {
+                            length: hInit,
+                            topRadius: dbhInit * 0.08,
+                            bottomRadius: dbhInit * 0.08,
+                            slices: 6, // Chỉ render 6 cạnh thay vì hình tròn chuẩn
+                            material: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.85)
                         }
                     });
                 });
             });
 
+        function populateForm(entity) {
+            selectedEntity = entity;
+            document.getElementById('instruction').style.display = 'none';
+            document.getElementById('formFields').style.display = 'block';
+            document.getElementById('treeId').value = selectedEntity.properties.id.getValue();
+            document.getElementById('treeType').value = selectedEntity.properties.type.getValue();
+            document.getElementById('treeDBH').value = selectedEntity.properties.dbh.getValue();
+            document.getElementById('treeH').value = selectedEntity.properties.h.getValue();
+            updateLabels(selectedEntity.properties.agb.getValue(), selectedEntity.properties.c.getValue(), selectedEntity.properties.co2.getValue());
+        }
+
         const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
         handler.setInputAction(function(movement) {
             const pickedObject = viewer.scene.pick(movement.position);
             if (Cesium.defined(pickedObject) && pickedObject.id) {
-                selectedEntity = pickedObject.id;
-                document.getElementById('instruction').style.display = 'none';
-                document.getElementById('formFields').style.display = 'block';
-                document.getElementById('treeId').value = selectedEntity.properties.id.getValue();
-                document.getElementById('treeType').value = selectedEntity.properties.type.getValue();
-                document.getElementById('treeDBH').value = selectedEntity.properties.dbh.getValue();
-                updateLabels(selectedEntity.properties.agb.getValue(), selectedEntity.properties.c.getValue(), selectedEntity.properties.co2.getValue());
+                populateForm(pickedObject.id);
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        document.getElementById('searchBtn').addEventListener('click', function() {
+            const searchVal = document.getElementById('searchInput').value.trim();
+            if (!searchVal) return;
+            const targetEntity = viewer.entities.getById(searchVal);
+            if (targetEntity) {
+                viewer.flyTo(targetEntity, { duration: 2.0, offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), 35) });
+                populateForm(targetEntity);
+            } else {
+                alert("Không tìm thấy cây có mã số: " + searchVal);
+            }
+        });
+
+        document.getElementById('searchInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') document.getElementById('searchBtn').click();
+        });
 
         document.getElementById('treeDBH').addEventListener('input', function(e) {
             if (!selectedEntity) return;
@@ -127,9 +190,22 @@
             selectedEntity.properties.c.setValue(newMetrics.c);
             selectedEntity.properties.co2.setValue(newMetrics.co2);
 
-            // Co giãn khối Elip khi thay đổi thông số
-            selectedEntity.ellipsoid.radii = new Cesium.Cartesian3(newDBH * 0.1, newDBH * 0.1, newDBH * 0.15);
+            selectedEntity.cylinder.topRadius = newDBH * 0.08;
+            selectedEntity.cylinder.bottomRadius = newDBH * 0.08;
             updateLabels(newMetrics.agb, newMetrics.c, newMetrics.co2);
+        });
+
+        document.getElementById('treeH').addEventListener('input', function(e) {
+            if (!selectedEntity) return;
+            const newH = parseFloat(e.target.value);
+            if (isNaN(newH) || newH <= 0) return;
+
+            selectedEntity.properties.h.setValue(newH);
+            selectedEntity.cylinder.length = newH;
+            
+            const coords = selectedEntity.position.getValue(Cesium.JulianDate.now());
+            const cartographic = Cesium.Cartographic.fromCartesian(coords);
+            selectedEntity.position = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, newH / 2);
         });
 
         function updateLabels(agb, c, co2) {
